@@ -27,7 +27,6 @@ from telegram.ext import ChatMemberHandler
 from telegram.ext import CommandHandler, ContextTypes
 import aiohttp
 import httpx
-from keep_alive import keep_alive
 import logging
 logger = logging.getLogger(__name__)
 USERS_FILE = "users.json"
@@ -1545,7 +1544,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
     logger.info("Bot starting...")
-    keep_alive()
     app.run_polling()
 
 
