@@ -27,6 +27,7 @@ from telegram.ext import ChatMemberHandler
 from telegram.ext import CommandHandler, ContextTypes
 import aiohttp
 import httpx
+from keep_alive import keep_alive
 import logging
 logger = logging.getLogger(__name__)
 USERS_FILE = "users.json"
@@ -1496,6 +1497,54 @@ async def news(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Error ambil berita.")
         print(f"NEWS ERROR: {e}")
 
+async def qc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+    text = ' '.join(context.args)
+
+    if not text:
+        await message.reply_text("⚠️ Contoh: /qc halo dunia")
+        return
+
+    user = update.effective_user
+    username = user.username or user.first_name
+
+    # Ambil profile photo user
+    photos = await context.bot.get_user_profile_photos(user.id, limit=1)
+    if photos.total_count > 0:
+        photo_file = await photos.photos[0][0].get_file()
+        photo_bytes = await photo_file.download_as_bytearray()
+        avatar = Image.open(BytesIO(photo_bytes)).convert("RGBA")
+    else:
+        # default avatar
+        avatar = Image.new("RGBA", (100, 100), (200, 200, 200, 255))
+
+    # Resize avatar jadi kecil
+    avatar = avatar.resize((100, 100))
+
+    # Buat canvas (background putih)
+    img = Image.new("RGBA", (600, 200), "WHITE")
+    draw = ImageDraw.Draw(img)
+
+    # Load font (pastikan fonts ada)
+    font_big = ImageFont.truetype("DejaVuSans-Bold.ttf", 30)
+    font_small = ImageFont.truetype("DejaVuSans.ttf", 24)
+
+    # Tempel avatar
+    img.paste(avatar, (20, 50))
+
+    # Tulis username
+    draw.text((140, 50), f"@{username}", font=font_big, fill="black")
+
+    # Tulis teks
+    draw.text((140, 100), text, font=font_small, fill="black")
+
+    # Save jadi WEBP buat stiker
+    output = BytesIO()
+    img.save(output, format="WEBP")
+    output.seek(0)
+
+    await message.reply_sticker(sticker=output)
+
 def main():
     app = Application.builder().token(TOKEN).build()
 
@@ -1529,6 +1578,7 @@ def main():
     app.add_handler(CommandHandler("dev", dev_command))
     app.add_handler(CommandHandler("replay", replay_command))
     app.add_handler(CommandHandler("news", news))
+    app.add_handler(CommandHandler("qc", qc_command)
 
 
     # Sticker photo trigger
@@ -1544,6 +1594,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
     logger.info("Bot starting...")
+    keep_alive()
     app.run_polling()
 
 
