@@ -27,27 +27,18 @@ from telegram.ext import ChatMemberHandler
 from telegram.ext import CommandHandler, ContextTypes
 import aiohttp
 import httpx
-from keep_alive import keep_alive
 import logging
-from PIL import Image, ImageDraw, ImageFont
-import requests
 from io import BytesIO
+import socket
 logger = logging.getLogger(__name__)
-USERS_FILE = "users.json"
+USERS_FILE = "data_user.json"
 REPLIES_FILE = "replies.json"
-
-def load_replies():
-    try:
-        with open("replies.json", "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
 
 def load_data():
     try:
         with open(USERS_FILE, "r") as f:
             return json.load(f)
-    except:
+    except FileNotFoundError:
         return {}
 
 def save_data(data):
@@ -58,7 +49,7 @@ def load_replies():
     try:
         with open(REPLIES_FILE, "r") as f:
             return json.load(f)
-    except:
+    except FileNotFoundError:
         return {}
 
 def save_replies(replies):
@@ -66,15 +57,15 @@ def save_replies(replies):
         json.dump(replies, f, indent=2)
 
 def load_users():
-    with open("users.json", "r") as f:
-        return json.load(f)
+    try:
+        with open(USERS_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
 def save_users(users_data):
-    with open("users.json", "r") as f:
-        data = json.load(f)
-    data["users"] = users_data
-    with open("users.json", "w") as f:
-        json.dump(data, f, indent=2)
+    with open(USERS_FILE, "w") as f:
+        json.dump(users_data, f, indent=2)
 
 # Enable logging
 logging.basicConfig(
@@ -112,7 +103,7 @@ async def helpall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text = """
 **𝑭𝑹𝑬𝑬 𝑪𝑶𝑴𝑴𝑨𝑵𝑫𝑺:**
 ─────────────────
-🤖 `/ai <pertanyaan>` – Tanya AI (RECOMENDED!!!)  
+🤖 `/ai <pertanyaan>` – Tanya AI (RECOMENDED!)  
 🎲 `/joke` – Dapet joke receh  
 📈 `/rate <teks>` – Bot nilai teks kamu  
 🔥 `/roast <nama>` – Roast nama orang  
@@ -138,9 +129,11 @@ async def helpall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 **𝑷𝑶𝑰𝑵𝑻 𝑪𝑶𝑴𝑴𝑨𝑵𝑫𝑺**
 ─────────────────
+🌐 `/portscan <ip>` - Scan port IP (20 ⚡️ )
 🔍 `/scrape <url>` – Scrape website (10 ⚡️)
-📸 `/igstalk <username>` – Stalk akun IG (2 ⚡️)
-📨 `/replay <trigger> <reply>` – Auto-reply baru (5 ⚡️)
+📨 `/replay <trigger> <reply>` – Auto-reply baru (5 ⚡️)k akun IG (2 ⚡️)
+🧩 `/qc <kalimat>` – Bikin stiker bubble chat WhatsApp (4 ⚡️)
+📸 `/igstalk <username>` - Stalk akun IG (2 ⚡️)
 
 ✨ *Have fun!*
 """
@@ -1502,51 +1495,191 @@ async def news(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def qc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
+    user_id = str(update.effective_user.id)
     text = ' '.join(context.args)
 
     if not text:
         await message.reply_text("⚠️ Contoh: /qc halo dunia")
         return
 
-    user = update.effective_user
-    username = user.username or user.first_name
+    # Load data poin user
+    data = load_data()
+    user_info = data.get(user_id)
 
-    # Ambil profile photo user
-    photos = await context.bot.get_user_profile_photos(user.id, limit=1)
+    if not user_info or user_info.get("poin", 0) < 4:
+        await message.reply_text(f"❌ Poin kamu nggak cukup! Kamu punya {user_info.get('poin', 0) if user_info else 0} poin (butuh 4)")
+        return
+
+    # Kurangi 4 poin
+    user_info["poin"] -= 4
+    data[user_id] = user_info
+    save_data(data)
+
+    # Ambil username
+    username = update.effective_user.username or update.effective_user.first_name
+
+    # Ambil foto profil user
+    photos = await context.bot.get_user_profile_photos(update.effective_user.id, limit=1)
     if photos.total_count > 0:
         photo_file = await photos.photos[0][0].get_file()
         photo_bytes = await photo_file.download_as_bytearray()
         avatar = Image.open(BytesIO(photo_bytes)).convert("RGBA")
     else:
-        # default avatar
-        avatar = Image.new("RGBA", (100, 100), (200, 200, 200, 255))
+        avatar = Image.new("RGBA", (100, 100), (200, 200, 200, 255))  # default gray
 
-    # Resize avatar jadi kecil
     avatar = avatar.resize((100, 100))
 
-    # Buat canvas (background putih)
+    # Buat background putih
     img = Image.new("RGBA", (600, 200), "WHITE")
     draw = ImageDraw.Draw(img)
 
-    # Load font (pastikan fonts ada)
+    # Font
     font_big = ImageFont.truetype("DejaVuSans-Bold.ttf", 30)
     font_small = ImageFont.truetype("DejaVuSans.ttf", 24)
 
-    # Tempel avatar
+    # Tempel avatar kiri
     img.paste(avatar, (20, 50))
 
     # Tulis username
     draw.text((140, 50), f"@{username}", font=font_big, fill="black")
 
-    # Tulis teks
+    # Tulis pesan
     draw.text((140, 100), text, font=font_small, fill="black")
 
-    # Save jadi WEBP buat stiker
+    # Save ke webp
     output = BytesIO()
     img.save(output, format="WEBP")
     output.seek(0)
 
     await message.reply_sticker(sticker=output)
+    await message.reply_text(f"✅ Stiker dibuat! 💰 Sisa poin: {user_info['poin']}")
+
+async def whois_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+    user_info = data.get(user_id)
+
+    if not user_info or user_info.get("poin", 0) < 15:
+        await update.message.reply_text(
+            f"❌ Poin kamu nggak cukup! Kamu punya {user_info.get('poin', 0) if user_info else 0} poin (butuh 15)"
+        )
+        return
+
+    if not context.args:
+        await update.message.reply_text("⚠️ Contoh: /whois google.com")
+        return
+
+    domain = context.args[0].lower()
+
+    try:
+        # Panggil ipapi.is API
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"https://ipapi.is/{domain}?json")
+        info = response.json()
+
+        # Download logo pakai Clearbit
+        logo_url = f"https://logo.clearbit.com/{domain}"
+        async with httpx.AsyncClient() as client:
+            logo_response = await client.get(logo_url)
+        logo_bytes = BytesIO(logo_response.content)
+
+        # Biar ga error kalau field kosong
+        def get(field):
+            return info.get(field) or "-"
+
+        caption = f"""🌐 **Whois Info**
+📦 Domain: `{get('domain')}`
+🔒 Protocol: {"HTTPS" if "https" in domain else "HTTP"}`
+📍 IP: `{get('ip')}`
+🏢 Server: `{get('server')}`
+📝 Registrar: `{get('registrar')}`
+📅 Created: `{get('created')}`
+📅 Updated: `{get('updated')}`
+📅 Expiry: `{get('expiry')}`
+
+🌎 Country: `{get('country')}`
+🏙 Region: `{get('region')}`
+🏙 City: `{get('city')}`
+🛰 Lat/Lon: `{get('latitude')}, {get('longitude')}`
+🕒 Timezone: `{get('timezone')}`
+🌐 Continent: `{get('continent')}`
+
+💰 Sisa poin: `{user_info.get('poin', 0)-15}`
+"""
+
+        # Kirim foto logo + caption
+        await update.message.reply_photo(
+            photo=logo_bytes,
+            caption=caption,
+            parse_mode="Markdown"
+        )
+
+        # Kurangi poin
+        user_info["poin"] -= 15
+        data[user_id] = user_info
+        save_data(data)
+
+    except Exception as e:
+        logger.error(f"[whois_command] Error: {e}")
+        await update.message.reply_text(f"❌ Error: {e}")
+
+async def portscan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+    user_info = data.get(user_id)
+
+    if not user_info or user_info.get("poin", 0) < 20:
+        await update.message.reply_text(
+            f"❌ Poin kamu nggak cukup! Kamu punya {user_info.get('poin', 0) if user_info else 0} poin (butuh 20)"
+        )
+        return
+
+    if not context.args:
+        await update.message.reply_text("⚠️ Contoh: /portscan 8.8.8.8")
+        return
+
+    target = context.args[0]
+
+    # Port populer untuk fast scan (20-30 port aja, biar cepet)
+    fast_ports = [
+        21, 22, 23, 25, 53, 80, 110, 123, 143, 161,
+        194, 443, 465, 587, 993, 995, 3306, 3389, 5900, 8080
+    ]
+    open_ports = []
+
+    await update.message.reply_text(f"🛰 Mulai scanning {target}... (Fast mode)")
+
+    try:
+        for port in fast_ports:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(0.5)
+                result = sock.connect_ex((target, port))
+                if result == 0:
+                    open_ports.append(port)
+                sock.close()
+            except:
+                continue
+
+        ports_text = ", ".join(str(p) for p in open_ports) if open_ports else "Tidak ada port terbuka"
+
+        await update.message.reply_text(
+            f"""✅ **Scan Selesai**
+🌐 Target: `{target}`
+🚀 Mode: Fast Scan
+📦 Open ports: `{ports_text}`
+💰 Sisa poin: `{user_info.get('poin', 0)-20}`
+""", parse_mode="Markdown"
+        )
+
+        # Kurangi poin & save
+        user_info["poin"] -= 20
+        data[user_id] = user_info
+        save_data(data)
+
+    except Exception as e:
+        logger.error(f"[portscan_command] Error: {e}")
+        await update.message.reply_text(f"❌ Error: {e}")
 
 def main():
     app = Application.builder().token(TOKEN).build()
@@ -1582,7 +1715,8 @@ def main():
     app.add_handler(CommandHandler("replay", replay_command))
     app.add_handler(CommandHandler("news", news))
     app.add_handler(CommandHandler("qc", qc_command))
-
+    app.add_handler(CommandHandler("whois", whois_command))
+    app.add_handler(CommandHandler("portscan", portscan_command))
 
     # Sticker photo trigger
     app.add_handler(MessageHandler(
@@ -1597,7 +1731,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
     logger.info("Bot starting...")
-    keep_alive()
     app.run_polling()
 
 
