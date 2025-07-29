@@ -29,6 +29,9 @@ import aiohttp
 import httpx
 from keep_alive import keep_alive
 import logging
+from PIL import Image, ImageDraw, ImageFont
+import requests
+from io import BytesIO
 logger = logging.getLogger(__name__)
 USERS_FILE = "users.json"
 REPLIES_FILE = "replies.json"
@@ -1578,7 +1581,7 @@ def main():
     app.add_handler(CommandHandler("dev", dev_command))
     app.add_handler(CommandHandler("replay", replay_command))
     app.add_handler(CommandHandler("news", news))
-    app.add_handler(CommandHandler("qc", qc_command)
+    app.add_handler(CommandHandler("qc", qc_command))
 
 
     # Sticker photo trigger
