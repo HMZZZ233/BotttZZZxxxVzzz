@@ -16,6 +16,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 import io
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import asyncio
 import re
@@ -30,9 +31,128 @@ import httpx
 import logging
 from io import BytesIO
 import socket
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from datetime import datetime
+import pytz
+from dotenv import load_dotenv
+from telegram.helpers import escape_markdown
+
 logger = logging.getLogger(__name__)
 USERS_FILE = "data_user.json"
 REPLIES_FILE = "replies.json"
+from telegram.helpers import escape_markdown
+
+jadwal_kelas_8a = {
+    "senin":
+    escape_markdown("""
+*📅 Jadwal Pelajaran Hari Senin (Kelas 8A)*
+
+────────────────────
+🕖 07.00–07.20 – Halaqoh
+⏳ 07.20–07.25 – Transisi
+🇬🇧 07.25–08.00 – English Habit / Baitul Lughoh
+📖 08.10–08.45 – Bahasa Inggris
+📖 08.45–09.20 – Bahasa Inggris
+🍽 09.20–09.45 – Istirahat
+🧪 09.45–10.20 – IPA
+🇮🇩 10.20–10.55 – Bahasa Indonesia
+🇮🇩 10.55–11.30 – Bahasa Indonesia
+🕌 12.45–13.20 – Al-Qur'an
+🕌 13.20–13.55 – Al-Qur'an
+🇸🇦 13.55–14.30 – Bahasa Arab
+────────────────────
+👔: Baju putih + biru
+> By HamzzH_BoT 🤖
+""",
+                    version=2),
+    "selasa":
+    escape_markdown("""
+*📅 Jadwal Pelajaran Hari Selasa (Kelas 8A)*
+
+────────────────────
+🕖 07.00–07.20 – Halaqoh
+⏳ 07.20–07.25 – Transisi
+🇬🇧 07.25–08.00 – English Habit / Baitul Lughoh
+🤸 08.10–08.45 – PJOK
+🤸 08.45–09.20 – PJOK
+🍽 09.20–09.45 – Istirahat
+📐 09.45–10.20 – Matematika
+📐 10.20–10.55 – Matematika
+📐 10.55–11.30 – Matematika
+🕌 12.45–13.20 – Al-Qur'an
+🕌 13.20–13.55 – Al-Qur'an
+🇸🇦 13.55–14.30 – Bahasa Arab
+────────────────────
+👔: Baju pandu jika ingin olahraga, baju hijau + celana hijau
+> By HamzzH_BoT 🤖
+""",
+                    version=2),
+    "rabu":
+    escape_markdown("""
+*📅 Jadwal Pelajaran Hari Rabu (Kelas 8A)*
+
+────────────────────
+🕖 07.00–07.20 – Halaqoh
+⏳ 07.20–07.25 – Transisi
+🇬🇧 07.25–08.00 – English Habit / Baitul Lughoh
+🧪 08.10–08.45 – IPA
+🧪 08.45–09.20 – IPA
+🍽 09.20–09.45 – Istirahat
+🇮🇩 09.45–10.20 – Bahasa Indonesia
+🇮🇩 10.20–10.55 – Bahasa Indonesia
+🇮🇩 10.55–11.30 – Bahasa Indonesia
+🕌 12.45–13.20 – Al-Qur'an
+🕌 13.20–13.55 – Al-Qur'an
+📐 13.55–14.30 – Matematika
+────────────────────
+👔: Baju batik warna biru + celana biru
+> By HamzzH_BoT 🤖
+""",
+                    version=2),
+    "kamis":
+    escape_markdown("""
+*📅 Jadwal Pelajaran Hari Kamis (Kelas 8A)*
+
+────────────────────
+🕖 07.00–07.20 – Halaqoh
+⏳ 07.20–07.25 – Transisi
+🇬🇧 07.25–08.00 – English Habit / Baitul Lughoh
+📐 08.10–08.45 – Matematika
+📐 08.45–09.20 – Matematika
+🍽 09.20–09.45 – Istirahat
+📝 09.45–10.20 – IMLA
+🎭 10.20–10.55 – SBDP / BJW / BK / PP / IPS
+🎭 10.55–11.30 – SBDP / BJW / BK / PP / IPS
+🕌 12.45–13.20 – Al-Qur'an
+🕌 13.20–13.55 – Al-Qur'an
+🇬🇧 13.55–14.30 – Bahasa Inggris
+────────────────────
+👔: Baju putih + celana putih
+> By HamzzH_BoT 🤖
+""",
+                    version=2),
+    "jumat":
+    escape_markdown("""
+*📅 Jadwal Pelajaran Hari Jumat (Kelas 8A)*
+
+────────────────────
+🕖 07.00–07.10 – Halaqoh
+🧹 07.10–07.50 – Jasadiyah / Jumat Bersih
+⏳ 07.50–08.00 – Transisi
+🇬🇧 08.00–08.30 – PAI 2
+🇬🇧 08.30–09.00 – PAI 2
+🇬🇧 09.00–09.30 – Informatika
+🍽 09.30–09.50 – Istirahat
+💻 09.50–10.20 – Informatika
+🕌 10.20–10.50 – PAI 1
+🕌 10.50–11.20 – PAI 1
+────────────────────
+👔: Baju pramuka + celana coklat
+> By HamzzH_BoT 🤖
+""",
+                    version=2)
+}
+
 
 def load_data():
     try:
@@ -41,9 +161,11 @@ def load_data():
     except FileNotFoundError:
         return {}
 
+
 def save_data(data):
     with open(USERS_FILE, "w") as f:
         json.dump(data, f, indent=2)
+
 
 def load_replies():
     try:
@@ -52,9 +174,11 @@ def load_replies():
     except FileNotFoundError:
         return {}
 
+
 def save_replies(replies):
     with open(REPLIES_FILE, "w") as f:
         json.dump(replies, f, indent=2)
+
 
 def load_users():
     try:
@@ -63,18 +187,19 @@ def load_users():
     except FileNotFoundError:
         return {}
 
+
 def save_users(users_data):
     with open(USERS_FILE, "w") as f:
         json.dump(users_data, f, indent=2)
 
+
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+    level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-TOKEN = "7918039127:AAFpdFHvd75VVI4KJLodBZrsxIyj9JT7GKA"
+load_dotenv()
+TOKEN = os.getenv("TOKEN")
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -86,19 +211,25 @@ GENIUS_ACCESS_TOKEN = "uAEf5-0mpCrHs1WgJ-QshiXvHYGNZjdOmuG3i7nWkkVPPUz8daUBF6tK3
 # States untuk ConversationHandler
 PASSWORD, COMMAND = range(2)
 CORRECT_PASSWORD = "Hamzah gntg7dateK"
+
+
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Yo! Bot is alive. Ketik /help buat liat list perintah.")
+    await update.message.reply_text(
+        "Yo! Bot is alive. Ketik /help buat liat list perintah.")
+
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text('❌ Operation cancelled.')
     return ConversationHandler.END
+
+
 async def helpall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await update.message.reply_photo(
             photo="https://i.ytimg.com/vi/eXwZMAz9Vh8/maxresdefault.jpg",
             caption="📌 **__*FULL HELP MENU*__**",
-            parse_mode="Markdown"
-        )
+            parse_mode="Markdown")
 
         help_text = """
 **𝑭𝑹𝑬𝑬 𝑪𝑶𝑴𝑴𝑨𝑵𝑫𝑺:**
@@ -126,6 +257,7 @@ async def helpall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🌅 `.s` – Membuat stiker dari foto  
 💻 `/dev` – Info tentang developer bot
 📰 `/news` - Berita CNBC hari ini.
+📆 `/jadwal <hari>` - Jadwal pelajaran kelas 8A SMP ku.
 
 **𝑷𝑶𝑰𝑵𝑻 𝑪𝑶𝑴𝑴𝑨𝑵𝑫𝑺**
 ─────────────────
@@ -251,6 +383,8 @@ async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Kenapa cinta kamu kayak WiFi publik? Semua orang pernah coba."
     ]
     await update.message.reply_text(random.choice(jokes))
+
+
 # /rate
 async def rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
@@ -259,6 +393,7 @@ async def rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Nilai untuk '{teks}': {nilai}/100")
     else:
         await update.message.reply_text("Contoh: /rate Python")
+
 
 # /roast
 async def roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -370,6 +505,7 @@ async def roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Contoh: /roast Hamzah")
 
+
 # /truth
 async def truth(update: Update, context: ContextTypes.DEFAULT_TYPE):
     truths = [
@@ -380,8 +516,7 @@ async def truth(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Kapan terakhir kamu nangis? Kenapa?",
         "Siapa orang yang bikin kamu paling kesel saat ini?",
         "Pernah nyuri barang waktu kecil? Barang apa?",
-        "Siapa gebetan pertama kamu?",
-        "Kalau disuruh milih, cinta atau uang?",
+        "Siapa gebetan pertama kamu?", "Kalau disuruh milih, cinta atau uang?",
         "Pernah suka sama guru atau dosen?",
         "Pernah pura-pura sakit biar nggak sekolah?",
         "Siapa teman yang paling kamu percaya rahasianya?",
@@ -389,8 +524,7 @@ async def truth(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Siapa yang paling sering kamu chat sekarang?",
         "Pernah mimpiin siapa terakhir kali?",
         "Hal paling memalukan yang pernah kamu lakuin?",
-        "Pernah ghosting orang? Siapa?",
-        "Kamu pernah diselingkuhin?",
+        "Pernah ghosting orang? Siapa?", "Kamu pernah diselingkuhin?",
         "Pernah selingkuh? Jujur!",
         "Siapa orang yang paling sering kamu kepoin?",
         "Pernah jatuh cinta pada pandangan pertama?",
@@ -440,8 +574,7 @@ async def truth(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Pernah dighosting? Sama siapa?",
         "Hal paling kamu sesali tentang mantan?",
         "Pernah kepikiran balikan sama mantan?",
-        "Siapa yang kamu rinduin saat ini?",
-        "Hal paling bikin kamu insecure?",
+        "Siapa yang kamu rinduin saat ini?", "Hal paling bikin kamu insecure?",
         "Pernah ketahuan bohong sama pacar? Soal apa?",
         "Pernah pura-pura nggak peduli padahal peduli banget?",
         "Siapa orang yang kamu harap selalu ada buat kamu?",
@@ -464,8 +597,7 @@ async def truth(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Hal apa yang paling kamu pengen bilang ke gebetan tapi nggak berani?",
         "Siapa yang paling kamu takutin kalau dia pergi?",
         "Pernah pura-pura bahagia padahal nggak?",
-        "Apa arti cinta menurut kamu?",
-        "Pernah ngerasa nggak layak dicintai?",
+        "Apa arti cinta menurut kamu?", "Pernah ngerasa nggak layak dicintai?",
         "Pernah ngerasa sayang banget sampe takut kehilangan?",
         "Kalau punya satu permintaan yang pasti dikabulin, apa?",
         "Siapa orang yang paling berharga buat kamu?",
@@ -475,11 +607,11 @@ async def truth(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await update.message.reply_text(random.choice(truths))
 
+
 # /dare
 async def dare(update: Update, context: ContextTypes.DEFAULT_TYPE):
     dares = [
-        "Chat mantan: 'Aku masih sayang'.",
-        "Post foto jelek di story.",
+        "Chat mantan: 'Aku masih sayang'.", "Post foto jelek di story.",
         "Nyanyi keras-keras selama 10 detik.",
         "Screenshot chat terakhir dengan gebetan dan kirim ke grup.",
         "Ganti foto profil jadi foto jelek selama 1 hari.",
@@ -513,42 +645,36 @@ async def dare(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Nyanyi lagu dangdut keras-keras dan rekam.",
         "Ketik 'Aku cinta kamu' ke teman lawan jenis pertama di chat.",
         "Bilang ke sahabat: 'Aku benci kamu' lalu jelasin itu dare.",
-        "Ganti bio jadi 'Aku cari jodoh'.",
-        "Pakai baju kebalik 1 jam.",
+        "Ganti bio jadi 'Aku cari jodoh'.", "Pakai baju kebalik 1 jam.",
         "Chat mantan pacar: 'Gimana kabarmu?'.",
         "Kirim sticker random ke atasan atau guru.",
         "Chat 'Aku rindu kamu' ke orang yg baru kamu kenal.",
         "Post foto random di galeri ke story.",
         "Telfon teman dan langsung bilang 'Aku kangen'.",
         "Cerita cinta pertama kamu di grup.",
-        "Rekam suara bilang 'Aku malu' 5x.",
-        "Upload foto masa kecil kamu.",
+        "Rekam suara bilang 'Aku malu' 5x.", "Upload foto masa kecil kamu.",
         "Ganti status jadi 'Aku butuh perhatian'.",
         "Chat 'I miss you' ke orang yang nggak deket sama kamu.",
         "Tanya ke teman: 'Kamu cinta aku nggak?'.",
         "Tulis kata 'LOVE' di kertas dan foto.",
         "Bilang 'Kamu cantik/ganteng' ke lawan jenis random.",
-        "Upload selfie tanpa filter.",
-        "Buat puisi 2 baris dan kirim ke grup.",
+        "Upload selfie tanpa filter.", "Buat puisi 2 baris dan kirim ke grup.",
         "Ketik 'Aku kangen mantanku' di status.",
         "Chat orang random: 'Mau jadi temen aku?'.",
         "Tanya gebetan: 'Kalau aku nembak, diterima nggak?'.",
         "Tanya mantan: 'Kamu masih benci aku?'.",
         "Voice note ketawa 5 detik ke grup.",
         "Chat ke 3 kontak pertama: 'Aku suka kamu'.",
-        "Tulis nama gebetan di story.",
-        "Telfon teman dan langsung nyanyi.",
+        "Tulis nama gebetan di story.", "Telfon teman dan langsung nyanyi.",
         "Ketik 'Aku bodoh' dan kirim ke grup.",
         "Upload quotes galau di story.",
         "Bilang 'Aku pengen punya pacar' ke sahabat lawan jenis.",
         "Pakai foto profil kartun jelek.",
         "Tulis status: 'Ada yg kangen aku nggak?'.",
         "Chat 'Kamu lagi apa?' ke orang yg jarang kamu chat.",
-        "Cerita first kiss kamu di grup.",
-        "Post emot 😍 doang di story.",
+        "Cerita first kiss kamu di grup.", "Post emot 😍 doang di story.",
         "Tanya teman: 'Aku cantik/ganteng nggak?'.",
-        "Upload foto kaki atau tangan doang.",
-        "Kirim emot ❤️ ke mantan.",
+        "Upload foto kaki atau tangan doang.", "Kirim emot ❤️ ke mantan.",
         "Tanya ke random orang: 'Boleh kenalan?'.",
         "Chat ke 5 orang random: 'Hi!'.",
         "Bilang 'Aku sayang kamu' ke cermin dan rekam.",
@@ -564,8 +690,7 @@ async def dare(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Ketik 'Aku galau' dan kirim ke grup keluarga.",
         "Upload foto random dari galeri tanpa edit.",
         "Tanya gebetan: 'Kamu udah makan?'.",
-        "Ganti bio jadi 'Jomblo cari cinta'.",
-        "Chat mantan: 'Kangen ga?'.",
+        "Ganti bio jadi 'Jomblo cari cinta'.", "Chat mantan: 'Kangen ga?'.",
         "Voice note bilang 'Aku gemes' 3x.",
         "Upload foto makanan jelek ke story.",
         "Chat 'Aku suka kamu' ke teman lama.",
@@ -579,25 +704,28 @@ async def dare(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Upload foto paling lawas di HP ke story.",
         "Bilang 'Aku baper' di voice note dan kirim ke grup.",
         "Chat mantan: 'Aku dulu sayang banget sama kamu'.",
-        "Post emot 🥰 doang di story.",
-        "Tanya random: 'Kamu punya pacar?'."
+        "Post emot 🥰 doang di story.", "Tanya random: 'Kamu punya pacar?'."
     ]
     await update.message.reply_text(random.choice(dares))
+
 
 # /roll
 async def roll(update: Update, context: ContextTypes.DEFAULT_TYPE):
     hasil = random.randint(1, 6)
     await update.message.reply_text(f"Kamu dapet: 🎲 {hasil}")
 
+
 # /8ball
 async def eight_ball(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
         responses = [
-            "Yes", "No", "Maybe", "Definitely", "Ask again later", "Of course", "Never"
+            "Yes", "No", "Maybe", "Definitely", "Ask again later", "Of course",
+            "Never"
         ]
         await update.message.reply_text(random.choice(responses))
     else:
         await update.message.reply_text("Contoh: /8ball Apakah dia suka aku?")
+
 
 # /cat
 async def cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -607,11 +735,9 @@ async def cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Cat_November_2010-1a.jpg/1200px-Cat_November_2010-1a.jpg",
         "https://images2.alphacoders.com/716/71660.jpg",
         "http://www.homelesstohousecats.com/wp-content/uploads/2014/10/cat-401124_1920.jpg",
-        "https://cataas.com/cat",
-        "https://cataas.com/cat/cute",
+        "https://cataas.com/cat", "https://cataas.com/cat/cute",
         "https://cataas.com/cat/says/Meow",
-        "https://cataas.com/cat/says/Hello",
-        "https://cataas.com/cat/says/Hi",
+        "https://cataas.com/cat/says/Hello", "https://cataas.com/cat/says/Hi",
         "https://cataas.com/cat/says/Love",
         "https://cataas.com/cat/says/Happy",
         "https://cataas.com/cat/says/Sleepy",
@@ -623,18 +749,12 @@ async def cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "https://cataas.com/cat/says/Monday",
         "https://cataas.com/cat/says/Friday",
         "https://cataas.com/cat/says/Sunday",
-        "https://cataas.com/cat/says/Cat",
-        "https://cataas.com/cat/says/Lazy",
-        "https://cataas.com/cat/says/Play",
-        "https://cataas.com/cat/says/Nope",
-        "https://cataas.com/cat/says/Yes",
-        "https://cataas.com/cat/says/Ok",
-        "https://cataas.com/cat/says/Why",
-        "https://cataas.com/cat/says/What",
-        "https://cataas.com/cat/says/When",
-        "https://cataas.com/cat/says/How",
-        "https://cataas.com/cat/says/Who",
-        "https://cataas.com/cat/says/Where",
+        "https://cataas.com/cat/says/Cat", "https://cataas.com/cat/says/Lazy",
+        "https://cataas.com/cat/says/Play", "https://cataas.com/cat/says/Nope",
+        "https://cataas.com/cat/says/Yes", "https://cataas.com/cat/says/Ok",
+        "https://cataas.com/cat/says/Why", "https://cataas.com/cat/says/What",
+        "https://cataas.com/cat/says/When", "https://cataas.com/cat/says/How",
+        "https://cataas.com/cat/says/Who", "https://cataas.com/cat/says/Where",
         "https://cataas.com/cat/says/Sure",
         "https://cataas.com/cat/says/Maybe",
         "https://cataas.com/cat/says/Sorry",
@@ -642,10 +762,8 @@ async def cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "https://cataas.com/cat/says/Friends",
         "https://cataas.com/cat/says/Chill",
         "https://cataas.com/cat/says/Coffee",
-        "https://cataas.com/cat/says/Tea",
-        "https://cataas.com/cat/says/Smile",
-        "https://cataas.com/cat/says/Fun",
-        "https://cataas.com/cat/says/Work",
+        "https://cataas.com/cat/says/Tea", "https://cataas.com/cat/says/Smile",
+        "https://cataas.com/cat/says/Fun", "https://cataas.com/cat/says/Work",
         "https://cataas.com/cat/says/Study",
         "https://cataas.com/cat/says/School",
         "https://cataas.com/cat/says/Weekend",
@@ -658,34 +776,23 @@ async def cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "https://cataas.com/cat/says/Cool",
         "https://cataas.com/cat/says/Lovely",
         "https://cataas.com/cat/says/Great",
-        "https://cataas.com/cat/says/Best",
-        "https://cataas.com/cat/says/Wow",
-        "https://cataas.com/cat/says/Yay",
-        "https://cataas.com/cat/says/Omg",
-        "https://cataas.com/cat/says/Uwu",
-        "https://cataas.com/cat/says/Owo",
-        "https://cataas.com/cat/says/Yeah",
-        "https://cataas.com/cat/says/Nooo",
+        "https://cataas.com/cat/says/Best", "https://cataas.com/cat/says/Wow",
+        "https://cataas.com/cat/says/Yay", "https://cataas.com/cat/says/Omg",
+        "https://cataas.com/cat/says/Uwu", "https://cataas.com/cat/says/Owo",
+        "https://cataas.com/cat/says/Yeah", "https://cataas.com/cat/says/Nooo",
         "https://cataas.com/cat/says/Bye",
         "https://cataas.com/cat/says/Hi%20Again",
         "https://cataas.com/cat/says/Welcome",
-        "https://cataas.com/cat/says/Peace",
-        "https://cataas.com/cat/says/Bro",
-        "https://cataas.com/cat/says/Sis",
-        "https://cataas.com/cat/says/Bae",
-        "https://cataas.com/cat/says/Lmao",
-        "https://cataas.com/cat/says/Lol",
-        "https://cataas.com/cat/says/Haha",
-        "https://cataas.com/cat/says/Hehe",
+        "https://cataas.com/cat/says/Peace", "https://cataas.com/cat/says/Bro",
+        "https://cataas.com/cat/says/Sis", "https://cataas.com/cat/says/Bae",
+        "https://cataas.com/cat/says/Lmao", "https://cataas.com/cat/says/Lol",
+        "https://cataas.com/cat/says/Haha", "https://cataas.com/cat/says/Hehe",
         "https://cataas.com/cat/says/Hihi",
         "https://cataas.com/cat/says/Random",
         "https://cataas.com/cat/says/Why%20Not",
-        "https://cataas.com/cat/says/IDK",
-        "https://cataas.com/cat/says/WTF",
-        "https://cataas.com/cat/says/WOWWW",
-        "https://cataas.com/cat/says/YEP",
-        "https://cataas.com/cat/says/NOPEE",
-        "https://cataas.com/cat/says/Ugh",
+        "https://cataas.com/cat/says/IDK", "https://cataas.com/cat/says/WTF",
+        "https://cataas.com/cat/says/WOWWW", "https://cataas.com/cat/says/YEP",
+        "https://cataas.com/cat/says/NOPEE", "https://cataas.com/cat/says/Ugh",
         "https://cataas.com/cat/says/Meh",
         "https://cataas.com/cat/says/Fat%20Cat",
         "https://cataas.com/cat/says/Skinny%20Cat",
@@ -708,13 +815,15 @@ async def cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await update.message.reply_photo(random.choice(cats))
 
+
 # /love
 async def love(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) >= 2:
         nama1 = context.args[0]
         nama2 = context.args[1]
         persen = random.randint(1, 100)
-        await update.message.reply_text(f"Kecocokan {nama1} ❤️ {nama2}: {persen}%")
+        await update.message.reply_text(
+            f"Kecocokan {nama1} ❤️ {nama2}: {persen}%")
     else:
         await update.message.reply_text("Contoh: /love Andi Budi")
 
@@ -723,7 +832,9 @@ async def tebakangka(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     number = random.randint(1, 100)
     GAME_STATE[user_id] = number
-    await update.message.reply_text("🎲 Aku sudah milih angka 1-100. Tebak dengan kirim angkanya!")
+    await update.message.reply_text(
+        "🎲 Aku sudah milih angka 1-100. Tebak dengan kirim angkanya!")
+
 
 async def handle_guess(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -741,24 +852,29 @@ async def handle_guess(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except ValueError:
             pass
 
+
 async def tts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
         text = " ".join(context.args)
         try:
             # Generate speech
-            tts = gTTS(text=text, lang='id')  # 'id' buat bahasa Indonesia, ganti 'en' kalau mau Inggris
+            tts = gTTS(
+                text=text, lang='id'
+            )  # 'id' buat bahasa Indonesia, ganti 'en' kalau mau Inggris
             filename = f"tts_{update.effective_user.id}.mp3"
             tts.save(filename)
-            
+
             # Kirim sebagai voice note (opus/ogg)
             with open(filename, 'rb') as audio:
-                await update.message.reply_voice(voice=audio, caption="🎤 Nih suaranya:")
-            
+                await update.message.reply_voice(voice=audio,
+                                                 caption="🎤 Nih suaranya:")
+
             os.remove(filename)  # bersihin file setelah dikirim
         except Exception as e:
             await update.message.reply_text(f"⚠️ Error generate TTS: {str(e)}")
     else:
-        await update.message.reply_text("Contoh: /tts Halo dunia")   
+        await update.message.reply_text("Contoh: /tts Halo dunia")
+
 
 async def stickerify(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -794,27 +910,33 @@ async def stickerify(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_sticker(sticker=output)
 
+
 # Tambahin ke bot
-async def lyrics_genius_api(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def lyrics_genius_api(update: Update,
+                            context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Contoh: /lyrics Genius sia:API Cheap Thrills")
+        await update.message.reply_text(
+            "Contoh: /lyrics Genius sia:API Cheap Thrills")
         return
-    
+
     query = " ".join(context.args)
-    
+
     await update.message.reply_text(f"🔍 Cari lirik: {query}...")
 
     try:
         headers = {"Authorization": f"Bearer {GENIUS_ACCESS_TOKEN}"}
         params = {'q': query}
-        response = requests.get("https://api.genius.com/search", headers=headers, params=params, timeout=10)
+        response = requests.get("https://api.genius.com/search",
+                                headers=headers,
+                                params=params,
+                                timeout=10)
         data = response.json()
-        
+
         hits = data['response']['hits']
         if not hits:
             await update.message.reply_text("❌ Lagu nggak ketemu.")
             return
-        
+
         # Ambil lagu pertama
         song = hits[0]['result']
         song_title = song['title']
@@ -825,24 +947,29 @@ async def lyrics_genius_api(update: Update, context: ContextTypes.DEFAULT_TYPE):
         page = requests.get(url, timeout=10)
         soup = BeautifulSoup(page.text, 'html.parser')
         lyrics_divs = soup.select("div[data-lyrics-container=true]")
-        lyrics = "\n".join([div.get_text(separator="\n") for div in lyrics_divs])
-        
+        lyrics = "\n".join(
+            [div.get_text(separator="\n") for div in lyrics_divs])
+
         if not lyrics.strip():
             lyrics = "(⚠️ Lirik nggak bisa diambil. Mungkin protected.)"
-        
+
         text = f"🎵 *{song_title}* by *{artist}*\n\n{lyrics[:4000]}"
         await update.message.reply_text(text, parse_mode="Markdown")
-    
+
     except Exception as e:
         await update.message.reply_text(f"⚠️ Error: {str(e)}")
 
-async def lyrics_genius_scraping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def lyrics_genius_scraping(update: Update,
+                                 context: ContextTypes.DEFAULT_TYPE):
     try:
         args_joined = " ".join(context.args)
         # Misalnya: Genius sia:scraping Cheap Thrills
         parts = args_joined.split(':scraping')
         if len(parts) != 2:
-            await update.message.reply_text("Format salah. Contoh: /lyrics Genius sia:scraping Cheap Thrills")
+            await update.message.reply_text(
+                "Format salah. Contoh: /lyrics Genius sia:scraping Cheap Thrills"
+            )
             return
 
         artist_part = parts[0].replace("Genius", "").strip()
@@ -867,7 +994,8 @@ async def lyrics_genius_scraping(update: Update, context: ContextTypes.DEFAULT_T
         page = requests.get(song_url, timeout=10)
         soup = BeautifulSoup(page.text, 'html.parser')
         lyrics_divs = soup.select("div[data-lyrics-container=true]")
-        lyrics = "\n".join([div.get_text(separator="\n") for div in lyrics_divs])
+        lyrics = "\n".join(
+            [div.get_text(separator="\n") for div in lyrics_divs])
 
         if not lyrics.strip():
             lyrics = "(⚠️ Lirik nggak bisa diambil. Mungkin protected.)"
@@ -881,9 +1009,11 @@ async def lyrics_genius_scraping(update: Update, context: ContextTypes.DEFAULT_T
     except Exception as e:
         await update.message.reply_text(f"⚠️ Error scraping: {str(e)}")
 
+
 async def lyrics_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Contoh: /lyrics Genius sia:API Cheap Thrills")
+        await update.message.reply_text(
+            "Contoh: /lyrics Genius sia:API Cheap Thrills")
         return
 
     args_joined = " ".join(context.args)
@@ -893,7 +1023,9 @@ async def lyrics_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif ":scraping" in args_joined:
         await lyrics_genius_scraping(update, context)
     else:
-        await update.message.reply_text("⚠️ Tambahin :API atau :scraping di perintahmu.")
+        await update.message.reply_text(
+            "⚠️ Tambahin :API atau :scraping di perintahmu.")
+
 
 async def define(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -907,24 +1039,28 @@ async def define(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             meaning = data[0]['meanings'][0]['definitions'][0]['definition']
             part_of_speech = data[0]['meanings'][0]['partOfSpeech']
-            await update.message.reply_text(f"{word} ({part_of_speech}): {meaning}")
+            await update.message.reply_text(
+                f"{word} ({part_of_speech}): {meaning}")
         except (KeyError, IndexError):
             await update.message.reply_text("Definisi nggak ketemu.")
     else:
         await update.message.reply_text("Definisi nggak ketemu.")
 
+
 async def biner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Contoh: /biner Hamzah atau /biner 01001000...")
+        await update.message.reply_text(
+            "Contoh: /biner Hamzah atau /biner 01001000...")
         return
 
     inp = " ".join(context.args).strip()
 
     # Cek apakah input full 0 dan 1
-    if all(c in "01" for c in inp.replace(" ", "")) and len(inp.replace(" ", "")) % 8 == 0:
+    if all(c in "01" for c in inp.replace(" ", "")) and len(
+            inp.replace(" ", "")) % 8 == 0:
         # Biner ke teks
         try:
-            chars = [chr(int(inp[i:i+8], 2)) for i in range(0, len(inp), 8)]
+            chars = [chr(int(inp[i:i + 8], 2)) for i in range(0, len(inp), 8)]
             hasil = ''.join(chars)
             await update.message.reply_text(hasil)
         except:
@@ -933,6 +1069,7 @@ async def biner(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Teks ke biner
         hasil = ''.join(format(ord(c), '08b') for c in inp)
         await update.message.reply_text(hasil)
+
 
 async def belajar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -943,7 +1080,8 @@ async def belajar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     match = re.match(r"(\d+)\s*(detik|menit|jam)", teks)
 
     if not match:
-        await update.message.reply_text("Format salah. Contoh: /belajar 5 detik lagi")
+        await update.message.reply_text(
+            "Format salah. Contoh: /belajar 5 detik lagi")
         return
 
     jumlah = int(match.group(1))
@@ -959,7 +1097,8 @@ async def belajar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Satuan waktu gak dikenali.")
         return
 
-    await update.message.reply_text(f"⏰ Oke, akan ngingetin kamu belajar dalam {jumlah} {satuan}...")
+    await update.message.reply_text(
+        f"⏰ Oke, akan ngingetin kamu belajar dalam {jumlah} {satuan}...")
 
     # Jalanin delay tanpa ngeblok bot
     async def kirim_notif():
@@ -968,7 +1107,9 @@ async def belajar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     asyncio.create_task(kirim_notif())
 
+
 import json
+
 
 def simpan_keuangan(jenis, jumlah, keterangan, user_id):
     try:
@@ -990,21 +1131,23 @@ def simpan_keuangan(jenis, jumlah, keterangan, user_id):
     with open("keuangan.json", "w") as f:
         json.dump(data, f, indent=2)
 
+
 async def welcome_on_open(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.my_chat_member.new_chat_member.status == "member":
         keyboard = [["💰 Keuangan"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Halo, siap bantu keuangan lo.",
-            reply_markup=reply_markup
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text="Halo, siap bantu keuangan lo.",
+                                       reply_markup=reply_markup)
+
 
 async def keuangan_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [["➕ Pemasukan", "➖ Pengeluaran"], ["❌ Batal"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    await update.message.reply_text("Pilih transaksi:", reply_markup=reply_markup)
+    await update.message.reply_text("Pilih transaksi:",
+                                    reply_markup=reply_markup)
     context.user_data["mode"] = "menu_keuangan"
+
 
 async def transaksi_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = context.user_data.get("mode")
@@ -1012,10 +1155,12 @@ async def transaksi_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = update.message.text
         if text == "➕ Pemasukan":
             context.user_data["mode"] = "pemasukan"
-            await update.message.reply_text("Masukkan jumlah & keterangan: 50000 Gaji part time")
+            await update.message.reply_text(
+                "Masukkan jumlah & keterangan: 50000 Gaji part time")
         elif text == "➖ Pengeluaran":
             context.user_data["mode"] = "pengeluaran"
-            await update.message.reply_text("Masukkan jumlah & keterangan: 20000 Beli jajan")
+            await update.message.reply_text(
+                "Masukkan jumlah & keterangan: 20000 Beli jajan")
         elif text == "❌ Batal":
             context.user_data.clear()
             await update.message.reply_text("❌ Dibatalkan")
@@ -1025,20 +1170,23 @@ async def transaksi_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             jumlah = int(jumlah_str)
             keterangan = " ".join(ket)
             jenis = "masuk" if mode == "pemasukan" else "keluar"
-            simpan_keuangan(jenis, jumlah, keterangan, update.effective_user.id)
+            simpan_keuangan(jenis, jumlah, keterangan,
+                            update.effective_user.id)
             await update.message.reply_text(
-                f"✅ {jenis.upper()} Rp{jumlah:,} dicatat!\n📌 {keterangan}"
-            )
+                f"✅ {jenis.upper()} Rp{jumlah:,} dicatat!\n📌 {keterangan}")
             context.user_data.clear()
         except:
-            await update.message.reply_text("❌ Format salah. Contoh: 30000 Bayar listrik")
+            await update.message.reply_text(
+                "❌ Format salah. Contoh: 30000 Bayar listrik")
+
 
 async def user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     uid = str(user.id)
     username = user.username or user.full_name
 
-    print(f"[DEBUG] Telegram ID kamu: {uid}")  # <--- ini penting, muncul di terminal
+    print(f"[DEBUG] Telegram ID kamu: {uid}"
+          )  # <--- ini penting, muncul di terminal
 
     data = load_user_data()
 
@@ -1049,10 +1197,9 @@ async def user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_data = data[uid]
 
-    await update.message.reply_text(
-        f"👤 Username: {user_data['username']}\n"
-        f"💎 Poin: {user_data['poin']}"
-    )
+    await update.message.reply_text(f"👤 Username: {user_data['username']}\n"
+                                    f"💎 Poin: {user_data['poin']}")
+
 
 def load_user_data():
     if not os.path.exists("data_user.json"):
@@ -1060,21 +1207,25 @@ def load_user_data():
     with open("data_user.json", "r") as f:
         return json.load(f)
 
+
 def save_user_data(data):
     with open("data_user.json", "w") as f:
         json.dump(data, f, indent=2)
+
 
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import os, shutil, zipfile, uuid
 
+
 async def scrape_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_data = get_or_create_user(user.id, user.username or user.full_name)
 
     if user_data["poin"] < 10:
-        await update.message.reply_text("❌ Poin kamu kurang buat scrape (butuh 10 poin).")
+        await update.message.reply_text(
+            "❌ Poin kamu kurang buat scrape (butuh 10 poin).")
         return
 
     if not context.args:
@@ -1094,7 +1245,9 @@ async def scrape_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         soup = BeautifulSoup(res.text, "html.parser")
 
         # Simpan HTML
-        with open(os.path.join(base_folder, "index.html"), "w", encoding="utf-8") as f:
+        with open(os.path.join(base_folder, "index.html"),
+                  "w",
+                  encoding="utf-8") as f:
             f.write(soup.prettify())
 
         # Download asset eksternal (css/js/img)
@@ -1121,7 +1274,8 @@ async def scrape_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for root, dirs, files in os.walk(base_folder):
                 for file in files:
                     path = os.path.join(root, file)
-                    zipf.write(path, arcname=os.path.relpath(path, base_folder))
+                    zipf.write(path,
+                               arcname=os.path.relpath(path, base_folder))
 
         # Kirim ke user
         with open(zipname, "rb") as f:
@@ -1133,7 +1287,8 @@ async def scrape_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data[str(user.id)] = user_data
         save_user_data(data)
 
-        await update.message.reply_text(f"✅ Scrape selesai! 💎 Poin tersisa: {user_data['poin']}")
+        await update.message.reply_text(
+            f"✅ Scrape selesai! 💎 Poin tersisa: {user_data['poin']}")
 
     except Exception as e:
         await update.message.reply_text(f"❌ Gagal scrape: {e}")
@@ -1142,6 +1297,7 @@ async def scrape_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         shutil.rmtree(base_folder, ignore_errors=True)
         if os.path.exists(zipname):
             os.remove(zipname)
+
 
 def get_or_create_user(user_id, username):
     uid = str(user_id)
@@ -1153,24 +1309,29 @@ def get_or_create_user(user_id, username):
 
     return data[uid]
 
+
 async def ai_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) == 0:
-        await update.message.reply_text("❌ Contoh: /ai siapa presiden pertama indonesia")
+        await update.message.reply_text(
+            "❌ Contoh: /ai siapa presiden pertama indonesia")
         return
-    
+
     user_input = " ".join(context.args)
     try:
-        url = f"https://api.siputzx.my.id/api/ai/deepseek-llm-67b-chat?content={user_input}"
+        prompt = "kamu adalah ai yg sangat kasar ga banyak omong, dan baik hati namun pintar, cerdas jenius, namamu john ai buatan Hamzah Wisnu Dzaky"
+        url = f"https://api.siputzx.my.id/api/ai/gpt3?prompt={requests.utils.quote(prompt)}&content={requests.utils.quote(user_input)}"
+
         res = requests.get(url)
         data = res.json()
 
-        if data["status"]:
+        if data.get("status"):
             await update.message.reply_text(f"{data['data']}")
         else:
             await update.message.reply_text("❌ Gagal dapetin respon dari AI.")
     except Exception as e:
         await update.message.reply_text("⚠️ Error: " + str(e))
-        
+
+
 async def gemini_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("⚠️ Contoh: /gemini apa itu bot?")
@@ -1187,11 +1348,14 @@ async def gemini_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     data = await resp.json()
                     # cek format data, contoh: {"message":"jawaban"}
                     answer = data.get("message", "❓ Jawaban tidak ditemukan.")
-                    await update.message.reply_text(f'🤖 **Gemini says:**\n{answer}', parse_mode="Markdown")
+                    await update.message.reply_text(
+                        f'🤖 **Gemini says:**\n{answer}', parse_mode="Markdown")
                 else:
-                    await update.message.reply_text(f"❌ API error: status {resp.status}")
+                    await update.message.reply_text(
+                        f"❌ API error: status {resp.status}")
     except Exception as e:
         await update.message.reply_text(f"🚫 Gagal menghubungi API: {e}")
+
 
 OWNER_ID = "8046782026"  # pasang di atas, bareng import
 
@@ -1200,6 +1364,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 OWNER_ID = "8046782026"  # ganti sesuai ID kamu
+
 
 async def igstalk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -1218,7 +1383,8 @@ async def igstalk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     d = data_api.get("data", {})
 
                     if not d:
-                        await update.message.reply_text("❌ Data kosong atau user tidak ditemukan.")
+                        await update.message.reply_text(
+                            "❌ Data kosong atau user tidak ditemukan.")
                         return
 
                     # Data profil utama
@@ -1234,21 +1400,25 @@ async def igstalk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ✅ *Verified*: {d.get('is_verified', '-')}
 """
 
-                    await update.message.reply_photo(
-                        photo=d.get('profile_pic_url', ''),
-                        caption=profil_text,
-                        parse_mode="Markdown"
-                    )
+                    await update.message.reply_photo(photo=d.get(
+                        'profile_pic_url', ''),
+                                                     caption=profil_text,
+                                                     parse_mode="Markdown")
 
                     # === Bagian postingan ===
                     posts = d.get("posts", [])
                     if posts:
-                        await update.message.reply_text(f"📸 *{len(posts)} Postingan Terbaru:*", parse_mode="Markdown")
-                        for idx, post in enumerate(posts[:5], 1):  # Biar ga kebanyakan, ambil 5 post
+                        await update.message.reply_text(
+                            f"📸 *{len(posts)} Postingan Terbaru:*",
+                            parse_mode="Markdown")
+                        for idx, post in enumerate(
+                                posts[:5],
+                                1):  # Biar ga kebanyakan, ambil 5 post
                             caption = post.get("caption", "-")
                             shortcode = post.get("shortcode", "")
                             post_url = f"https://www.instagram.com/p/{shortcode}" if shortcode else "-"
-                            media = post.get("media_url") or post.get("thumbnail_url") or ""
+                            media = post.get("media_url") or post.get(
+                                "thumbnail_url") or ""
 
                             text_post = f"""
 📦 *Post #{idx}*
@@ -1256,13 +1426,20 @@ async def igstalk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🔗 [Buka Postingan IG]({post_url})
 """
                             if media:
-                                await update.message.reply_photo(photo=media, caption=text_post, parse_mode="Markdown")
+                                await update.message.reply_photo(
+                                    photo=media,
+                                    caption=text_post,
+                                    parse_mode="Markdown")
                             else:
-                                await update.message.reply_text(text_post, parse_mode="Markdown")
+                                await update.message.reply_text(
+                                    text_post, parse_mode="Markdown")
                     else:
-                        await update.message.reply_text("❔ Tidak ada postingan terbaru yang bisa ditampilkan.")
+                        await update.message.reply_text(
+                            "❔ Tidak ada postingan terbaru yang bisa ditampilkan."
+                        )
                 else:
-                    await update.message.reply_text(f"❌ API error: status {resp.status}")
+                    await update.message.reply_text(
+                        f"❌ API error: status {resp.status}")
     except Exception as e:
         await update.message.reply_text(f"🚫 Gagal hubungi API: {e}")
 
@@ -1275,7 +1452,6 @@ from telegram.ext import ContextTypes
 
 OWNER_ID = "8046782026"  # ganti sesuai ID kamu
 
-
 import aiohttp
 import json
 import os
@@ -1285,20 +1461,23 @@ from telegram.ext import ContextTypes
 # Ganti sama ID kamu
 OWNER_ID = "8046782026"
 
+
 # === YTMP3 command ===
 async def ytmp3_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     uid = str(user.id)
 
     if not context.args:
-        await update.message.reply_text("⚠️ Contoh: /ytmp3 https://youtu.be/abc123")
+        await update.message.reply_text(
+            "⚠️ Contoh: /ytmp3 https://youtu.be/abc123")
         return
 
     yt_url = context.args[0].strip()
 
     data = load_user_data()
     if uid not in data:
-        await update.message.reply_text("❌ Kamu belum terdaftar. Gunakan /user dulu.")
+        await update.message.reply_text(
+            "❌ Kamu belum terdaftar. Gunakan /user dulu.")
         return
 
     points = data[uid].get("poin", 0)
@@ -1307,7 +1486,9 @@ async def ytmp3_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass  # owner gratis
     else:
         if points < 1:
-            await update.message.reply_text(f"⚡️ Point kamu kurang ({points}). Perlu 1 point untuk pakai perintah ini.")
+            await update.message.reply_text(
+                f"⚡️ Point kamu kurang ({points}). Perlu 1 point untuk pakai perintah ini."
+            )
             return
         data[uid]["poin"] -= 1
         save_user_data(data)
@@ -1325,15 +1506,19 @@ async def ytmp3_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     dl_url = result.get("url") or result.get("link") or ""
 
                     if not dl_url:
-                        await update.message.reply_text("❌ Gagal ambil link download.")
+                        await update.message.reply_text(
+                            "❌ Gagal ambil link download.")
                         return
 
                     text = f"🎵 *{title}*\n[Klik untuk download MP3]({dl_url})"
-                    await update.message.reply_text(text, parse_mode="Markdown")
+                    await update.message.reply_text(text,
+                                                    parse_mode="Markdown")
                 else:
-                    await update.message.reply_text(f"❌ API error: status {resp.status}")
+                    await update.message.reply_text(
+                        f"❌ API error: status {resp.status}")
     except Exception as e:
         await update.message.reply_text(f"🚫 Gagal menghubungi API: {e}")
+
 
 async def gacha_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -1342,7 +1527,8 @@ async def gacha_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_user_data()
 
     if uid not in data:
-        await update.message.reply_text("❌ Kamu belum terdaftar. Gunakan /user dulu.")
+        await update.message.reply_text(
+            "❌ Kamu belum terdaftar. Gunakan /user dulu.")
         return
 
     # Gacha antara -500 s/d +1000
@@ -1354,10 +1540,11 @@ async def gacha_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"🎰 Kamu menggacha: {hasil_gacha} point!\n"
-        f"💰 Total point kamu sekarang: {data[uid]['poin']}"
-    )
+        f"💰 Total point kamu sekarang: {data[uid]['poin']}")
 
-async def stickerify_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def stickerify_handler(update: Update,
+                             context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     if not message or not message.photo:
         await message.reply_text("⚠️ Kirim foto dengan caption .s")
@@ -1380,10 +1567,8 @@ async def stickerify_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         # Kirim stiker
         with open(webp_path, "rb") as sticker_file:
-            await context.bot.send_sticker(
-                chat_id=message.chat_id,
-                sticker=sticker_file
-            )
+            await context.bot.send_sticker(chat_id=message.chat_id,
+                                           sticker=sticker_file)
 
         # Cleanup
         os.remove(file_path)
@@ -1391,6 +1576,7 @@ async def stickerify_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     except Exception as e:
         await message.reply_text(f"❌ Gagal bikin stiker: {e}")
+
 
 async def dev_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = """
@@ -1402,6 +1588,7 @@ async def dev_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • 💡 *Motto hidup*: "The more you learn, the more you earn"
 """
     await update.message.reply_text(text, parse_mode="Markdown")
+
 
 async def replay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -1434,14 +1621,16 @@ async def replay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"✅ Auto-reply *{trigger}* disimpan.\n💰 Sisa poin: {data.get(user_id, {}).get('poin', 0)}",
-        parse_mode="Markdown"
-    )
+        parse_mode="Markdown")
 
-async def auto_reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def auto_reply_handler(update: Update,
+                             context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
     replies = load_replies()
     if text in replies:
         await update.message.reply_text(replies[text])
+
 
 # ===== text_handler.py atau taruh di main.py sekalian =====
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1466,12 +1655,17 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Default fallback: transaksi input
     await transaksi_input(update, context)
+
+
 import logging
+
 logger = logging.getLogger(__name__)
 
 
 async def error_handler(update, context):
-    logger.error(msg="Exception while handling update:", exc_info=context.error)
+    logger.error(msg="Exception while handling update:",
+                 exc_info=context.error)
+
 
 async def news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = "https://api.siputzx.my.id/api/berita/cnbcindonesia"
@@ -1485,13 +1679,16 @@ async def news(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for item in data["result"][:5]:  # ambil 5 berita teratas
                 reply += f"• [{item['title']}]({item['link']})\n"
 
-            await update.message.reply_text(reply, parse_mode="Markdown", disable_web_page_preview=True)
+            await update.message.reply_text(reply,
+                                            parse_mode="Markdown",
+                                            disable_web_page_preview=True)
         else:
             await update.message.reply_text("Gagal ambil berita atau kosong.")
 
     except Exception as e:
         await update.message.reply_text("⚠️ Error ambil berita.")
         print(f"NEWS ERROR: {e}")
+
 
 async def qc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
@@ -1507,7 +1704,9 @@ async def qc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_info = data.get(user_id)
 
     if not user_info or user_info.get("poin", 0) < 4:
-        await message.reply_text(f"❌ Poin kamu nggak cukup! Kamu punya {user_info.get('poin', 0) if user_info else 0} poin (butuh 4)")
+        await message.reply_text(
+            f"❌ Poin kamu nggak cukup! Kamu punya {user_info.get('poin', 0) if user_info else 0} poin (butuh 4)"
+        )
         return
 
     # Kurangi 4 poin
@@ -1519,13 +1718,15 @@ async def qc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = update.effective_user.username or update.effective_user.first_name
 
     # Ambil foto profil user
-    photos = await context.bot.get_user_profile_photos(update.effective_user.id, limit=1)
+    photos = await context.bot.get_user_profile_photos(
+        update.effective_user.id, limit=1)
     if photos.total_count > 0:
         photo_file = await photos.photos[0][0].get_file()
         photo_bytes = await photo_file.download_as_bytearray()
         avatar = Image.open(BytesIO(photo_bytes)).convert("RGBA")
     else:
-        avatar = Image.new("RGBA", (100, 100), (200, 200, 200, 255))  # default gray
+        avatar = Image.new("RGBA", (100, 100),
+                           (200, 200, 200, 255))  # default gray
 
     avatar = avatar.resize((100, 100))
 
@@ -1552,7 +1753,9 @@ async def qc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     output.seek(0)
 
     await message.reply_sticker(sticker=output)
-    await message.reply_text(f"✅ Stiker dibuat! 💰 Sisa poin: {user_info['poin']}")
+    await message.reply_text(
+        f"✅ Stiker dibuat! 💰 Sisa poin: {user_info['poin']}")
+
 
 async def whois_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -1608,11 +1811,9 @@ async def whois_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
 
         # Kirim foto logo + caption
-        await update.message.reply_photo(
-            photo=logo_bytes,
-            caption=caption,
-            parse_mode="Markdown"
-        )
+        await update.message.reply_photo(photo=logo_bytes,
+                                         caption=caption,
+                                         parse_mode="Markdown")
 
         # Kurangi poin
         user_info["poin"] -= 15
@@ -1622,6 +1823,7 @@ async def whois_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"[whois_command] Error: {e}")
         await update.message.reply_text(f"❌ Error: {e}")
+
 
 async def portscan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -1642,12 +1844,13 @@ async def portscan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Port populer untuk fast scan (20-30 port aja, biar cepet)
     fast_ports = [
-        21, 22, 23, 25, 53, 80, 110, 123, 143, 161,
-        194, 443, 465, 587, 993, 995, 3306, 3389, 5900, 8080
+        21, 22, 23, 25, 53, 80, 110, 123, 143, 161, 194, 443, 465, 587, 993,
+        995, 3306, 3389, 5900, 8080
     ]
     open_ports = []
 
-    await update.message.reply_text(f"🛰 Mulai scanning {target}... (Fast mode)")
+    await update.message.reply_text(f"🛰 Mulai scanning {target}... (Fast mode)"
+                                    )
 
     try:
         for port in fast_ports:
@@ -1661,16 +1864,17 @@ async def portscan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 continue
 
-        ports_text = ", ".join(str(p) for p in open_ports) if open_ports else "Tidak ada port terbuka"
+        ports_text = ", ".join(
+            str(p)
+            for p in open_ports) if open_ports else "Tidak ada port terbuka"
 
-        await update.message.reply_text(
-            f"""✅ **Scan Selesai**
+        await update.message.reply_text(f"""✅ **Scan Selesai**
 🌐 Target: `{target}`
 🚀 Mode: Fast Scan
 📦 Open ports: `{ports_text}`
 💰 Sisa poin: `{user_info.get('poin', 0)-20}`
-""", parse_mode="Markdown"
-        )
+""",
+                                        parse_mode="Markdown")
 
         # Kurangi poin & save
         user_info["poin"] -= 20
@@ -1680,6 +1884,23 @@ async def portscan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"[portscan_command] Error: {e}")
         await update.message.reply_text(f"❌ Error: {e}")
+
+
+async def jadwal_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) != 1:
+        await update.message.reply_text("⚠️ Contoh: /jadwal senin")
+        return
+
+    hari = context.args[0].lower()
+    teks = jadwal_kelas_8a.get(hari)
+
+    if teks:
+        await update.message.reply_text(teks, parse_mode='Markdown')
+        logger.info(f"✅ User minta jadwal {hari}")
+    else:
+        await update.message.reply_text(teks, parse_mode='MarkdownV2')
+        logger.warning(f"❌ User minta jadwal tak dikenal: {hari}")
+
 
 def main():
     app = Application.builder().token(TOKEN).build()
@@ -1717,18 +1938,20 @@ def main():
     app.add_handler(CommandHandler("qc", qc_command))
     app.add_handler(CommandHandler("whois", whois_command))
     app.add_handler(CommandHandler("portscan", portscan_command))
+    app.add_handler(CommandHandler("jadwal", jadwal_handler))
 
     # Sticker photo trigger
-    app.add_handler(MessageHandler(
-        filters.PHOTO & filters.CaptionRegex(r"^\.s$"),
-        stickerify_handler
-    ))
+    app.add_handler(
+        MessageHandler(filters.PHOTO & filters.CaptionRegex(r"^\.s$"),
+                       stickerify_handler))
 
     # Welcome handler
-    app.add_handler(ChatMemberHandler(welcome_on_open, ChatMemberHandler.MY_CHAT_MEMBER))
+    app.add_handler(
+        ChatMemberHandler(welcome_on_open, ChatMemberHandler.MY_CHAT_MEMBER))
 
     # === TEXT HANDLER (gabungan) ===
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
     logger.info("Bot starting...")
     app.run_polling()
